@@ -10,7 +10,6 @@ const path = require('path')
 const { register } = require('./controllers/auth')
 const { verifyToken } = require('./middleware/auth')
 const { createPost } = require('./controllers/posts')
-const { users, posts } = require('./data/index')
 
 /* CONFIGURATIONS */
 dotenv.config()
@@ -27,16 +26,22 @@ app.use(cors())
 app.use("/assets", express.static(path.join(__dirname, '/public/assets')))
 
 /* FILE STORAGE */
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, '/public/assets')
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-        cb(null, file.originalname+'-'+uniqueSuffix )
-    }
-})
-const upload = multer({ storage: storage })
+// const storage = multer.diskStorage({
+//     destination: function (req, file, cb) {
+//         cb(null, '/public/assets')
+//     },
+//     filename: function (req, file, cb) {
+//         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+//         cb(null, file.originalname+'-'+uniqueSuffix )
+//     }
+// })
+// const upload = multer({ storage: storage })
+
+/* multer middleware */
+const storage = new multer.memoryStorage();
+const upload = multer({
+    storage,
+});
 
 /* Routes with Files  */
 app.post("/auth/register", upload.single("picture"), register);

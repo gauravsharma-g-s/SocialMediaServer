@@ -1,17 +1,38 @@
 const Post = require('../model/Post')
 const User = require('../model/User')
+const cloudinary = require("cloudinary").v2;
+require('dotenv').config();
 
+/* CONFIGURING THE CLOUDINARY FOR IMAGE UPLOAD */
+cloudinary.config({
+    cloud_name: process.env.CLOUD_NAME,
+    api_key: process.env.API_KEY,
+    api_secret: process.env.API_SECRET,
+});
+async function handleUpload(file) {
+    const res = await cloudinary.uploader.upload(file, {
+        folder: "posts",
+        resource_type: "auto",
+    });
+    return res;
+}
 const createPost = async (req, res) => {
     try {
         const { userId, description, picturePath } = req.body;
         const user = await User.findById(userId)
+        // Storing the image in cloudinary
+
+        const b64 = Buffer.from(req.file.buffer).toString("base64");
+        let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+        const response = await handleUpload(dataURI);
+
         const newPost = new Post({
             userId,
             firstName: user.firstName,
             lastName: user.lastName,
             location: user.location,
             description,
-            picturePath,
+            picturePath:response.public_id,
             userPicturePath: user.picturePath,
             likes: {},
             comments: []
@@ -28,7 +49,7 @@ const createPost = async (req, res) => {
 /* READ */
 const getFeedPosts = async (req, res) => {
     try {
-        const posts = await Post.find()         // Gives all the posts
+        const posts = await Post.find();        // Gives all the posts
         res.status(200).json(posts)
     } catch (err) {
         res.status(404).json({ message: err.message })
