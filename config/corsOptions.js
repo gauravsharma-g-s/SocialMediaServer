@@ -1,5 +1,6 @@
 const whitelist = ['http:/127:0:0:1:5500',
-                 'http://localhost:3000']
+                 'http://localhost:3000',
+                 'https://connect-cdgy.onrender.com']
 const corsOption = {
     origin: (origin, callback) => {
         if (whitelist.indexOf(origin) !== -1    || !origin) {
