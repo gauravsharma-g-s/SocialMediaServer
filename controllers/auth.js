@@ -37,7 +37,6 @@ const register = async (req, res) => {
             email,
             otp
         } = req.body;                                               // Destructure the req.body object and extract all values
-        console.log("email "+email+" OTP "+otp);
         // Verify User Otp
         if (!email || !otp) {
             throw new Error("400 Empty otp details are not allowed");
@@ -74,7 +73,6 @@ const register = async (req, res) => {
 
         // succesfull email authentication
         if (flag === true) {
-            console.log("Otp verified");
             const {firstName,
                 lastName,
                 email,
@@ -98,9 +96,7 @@ const register = async (req, res) => {
                 viewedProfile: Math.floor(Math.random() * 10000),
                 impressions: Math.floor(Math.random() * 10000)
             });
-            console.log("saving user");
             const savedUser = await newUser.save();
-            console.log("Saved")
             const successfullySavedUser = {...savedUser._doc,error:"No error"}
             res.status(201).json(successfullySavedUser);            // Resource saved successfully and returned saved User to Front-End
         }
@@ -175,7 +171,7 @@ const sendOTPVerificationEmail = async (req, res) => {
         // Hash the Otp
         const salt = 10;
         const hashedOtp = await bcrypt.hash(otp, salt);
-        console.log("Creating otp otp "+email)
+        console.log("Creating otp for "+email)
         const newOTPVerification = new UserOTPVerification({
             // userId:_id,
             email: email,
@@ -183,18 +179,15 @@ const sendOTPVerificationEmail = async (req, res) => {
             createAt: Date.now(),
             expirtedAt: Date.now() + 3600000
         });
-        console.log("Going to save otp");
          // image storing
          const b64 = Buffer.from(req.file.buffer).toString("base64");
          let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
         // save Otp record
         await newOTPVerification.save();
-        console.log("Going to send otp")
-        
          const response = await handleUpload(dataURI);
         // Send the mail
         await transporter.sendMail(mailOptions);
-        console.log("Sent mail");
+        console.log("Otp sent")
         res.json({
             status: "PENDING",
             message: "Verification email sent",

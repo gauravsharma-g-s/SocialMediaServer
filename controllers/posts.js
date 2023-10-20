@@ -18,7 +18,7 @@ async function handleUpload(file) {
 }
 const createPost = async (req, res) => {
     try {
-        const { userId, description, picturePath } = req.body;
+        const { userId, description } = req.body;
         const user = await User.findById(userId)
         // Storing the image in cloudinary
 
@@ -32,7 +32,7 @@ const createPost = async (req, res) => {
             lastName: user.lastName,
             location: user.location,
             description,
-            picturePath:response.public_id,
+            picturePath: response.public_id,
             userPicturePath: user.picturePath,
             likes: {},
             comments: []
@@ -71,7 +71,7 @@ const getUserPosts = async (req, res) => {
 const likePost = async (req, res) => {
     try {
         const { postId } = req.params;
-        const {userId} = req.body;
+        const { userId } = req.body;
         const post = await Post.findById(postId);
         const isLiked = post.likes.get(userId);                 // If post liked or not
         if (isLiked)
@@ -89,4 +89,62 @@ const likePost = async (req, res) => {
     }
 }
 
-module.exports = { createPost, getFeedPosts, getUserPosts, likePost }
+
+const addComment = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { userId, text, picturePath, name } = req.body;
+        const updatedPost = await Post.findByIdAndUpdate(
+            postId,
+            { $push: { comments: { text, commentBy: userId, picturePath, name } } },
+            { new: true }
+        )
+        if (!updatedPost) {
+            return res.status(404).json({ message: "Post doesn't exists" });
+        }
+        // Send the updatedPost to the frontend
+        res.status(200).json(updatedPost);
+
+    } catch (err) {
+        res.json({ message: err.message })
+    }
+}
+
+
+const deleteComment = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { commentId } = req.body;
+
+        const updatedPost = await Post.findByIdAndUpdate(
+            postId,
+            { $pull: { comments: { _id: commentId } } },
+            { new: true }
+        )
+        if (!updatedPost) {
+            return res.status(404).json({ message: "Post doesn't exists" });
+        }
+        // Send the updatedPost to the frontend
+        res.status(200).json(updatedPost);
+    }
+    catch (err) {
+        res.json({ message: err.message })
+    }
+}
+
+const deletePost = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const {picturePath} =  req.body;
+        await cloudinary.uploader
+            .destroy(picturePath)
+            .then(result => console.log(result));
+       await Post.findByIdAndRemove(postId);
+       
+        res.status(200).json("Deleted Successfully");
+    }
+    catch (err) {
+        res.json({ message: err.message })
+    }
+}
+module.exports = { createPost, getFeedPosts, getUserPosts, likePost, addComment, deleteComment, deletePost }

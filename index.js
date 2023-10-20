@@ -11,10 +11,19 @@ const { register, sendOTPVerificationEmail } = require('./controllers/auth')
 const { verifyToken } = require('./middleware/auth')
 const { createPost } = require('./controllers/posts')
 const corsOption = require('./config/corsOptions')
+const http = require('http')
+const { Server } = require('socket.io')
 
 /* CONFIGURATIONS */
 dotenv.config()
 const app = express()
+const server = http.createServer(app);
+
+/* SOCKET.IO */
+const io = new Server(server, {
+    cors: corsOption
+})
+
 
 /* Middlewares Setup */
 app.use(cors(corsOption))
@@ -34,13 +43,14 @@ const upload = multer({
 
 /* Routes with Files  */
 app.post("/auth/sendOTP", upload.single("picture"), sendOTPVerificationEmail);
-app.post("/auth/register", register);
 app.post("/posts", verifyToken, upload.single("picture"), createPost);
 
 /* ROUTES */
+app.post("/auth/register", register);
 app.use("/auth", require('./routes/auth'));
 app.use("/users", require('./routes/users'))
 app.use("/posts", require('./routes/posts'))
+app.use("/chats", require('./routes/chats'))
 
 /* MONGOOSE SETUP */
 const PORT = process.env.PORT || 6001;
@@ -48,5 +58,47 @@ mongoose.connect(process.env.MONGO_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => {
-    app.listen(PORT, () => console.log(`Server running on PORT ${PORT}`))
+    server.listen(PORT, () => console.log(`Server running on PORT ${PORT}`))
 }).catch(err => console.log(`${err} cannot connect`))
+
+
+/* SOCKET IO SETUP */
+let users = [];
+
+const addUser = (userId, socketId) => {
+    !users.some(user => user.userId === userId) &&
+        users.push({ userId, socketId })
+}
+
+const removeUser = (socketId) => {
+    users = users.filter(user => user.socketId !== socketId)
+}
+
+const getUser = (userId) => {
+    return users.find(user => user.userId === userId);
+}
+io.on("connection", (socket) => {
+    console.log("a user connected");
+    // FETCH userId and socketId from User
+    socket.on("addUser", userId => {
+        addUser(userId, socket.id);
+        io.emit("getUsers", users);
+    });
+
+    socket.on("sendMessage", ({ senderId, receiverId, message }) => {
+        const receiver = getUser(receiverId);
+        receiver && io.to(receiver.socketId).emit("getMessage", {
+            senderId,
+            message
+        });
+    });
+
+    socket.on("disconnect", () => {
+        console.log("A user disconnected")
+        removeUser(socket.id);
+        io.emit("getUsers", users)
+    });
+});
+
+
+
