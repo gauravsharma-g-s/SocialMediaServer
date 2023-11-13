@@ -34,26 +34,25 @@ const register = async (req, res) => {
     let flag = false;
     try {
         const {
+            otpId,
             email,
             otp
         } = req.body;                                               // Destructure the req.body object and extract all values
         // Verify User Otp
-        if (!email || !otp) {
+        if (!otpId || !otp) {
             throw new Error("400 Empty otp details are not allowed");
         } else {
-            const UserOTPVerificationRecords = await UserOTPVerification.find({
-                email
-            });
-            console.log("userOtpverificationrecords",UserOTPVerificationRecords.length);
+            const UserOTPVerificationRecords = await UserOTPVerification.findById(otpId);
+            console.log("userOtpverificationrecords", UserOTPVerificationRecords.length);
             if (UserOTPVerificationRecords.length <= 0) {
                 // no records found
                 throw new Error("Account record not found. Signup again")
             } else {
-                const { expirtedAt } = UserOTPVerificationRecords[0];
-                const hashedOtp = UserOTPVerificationRecords[0].otp;
+                const { expirtedAt } = UserOTPVerificationRecords;
+                const hashedOtp = UserOTPVerificationRecords.otp;
 
                 if (expirtedAt < Date.now()) {
-                    await UserOTPVerification.deleteMany({ email });
+                    await UserOTPVerification.deleteMany({ _id:otpId });
                     throw new Error("Code has expired. Plaese request again")
                 }
                 else {
@@ -64,7 +63,7 @@ const register = async (req, res) => {
                         throw new Error("401 Invalid OTP")
                     }
                     else {
-                        await UserOTPVerification.deleteMany({ email });
+                        await UserOTPVerification.deleteMany({ _id:otpId });
                         flag = true;
                     }
                 }
@@ -73,23 +72,23 @@ const register = async (req, res) => {
 
         // succesfull email authentication
         if (flag === true) {
-            const {firstName,
+            const { firstName,
                 lastName,
                 email,
                 password,
                 friends,
                 location,
                 picturePath,
-                occupation} = req.body;
+                occupation } = req.body;
             const salt = await bcrypt.genSalt();
             const passwordHash = await bcrypt.hash(password, salt);      // password encrption
-           
+
             const newUser = new User({                                 // New User Details
                 firstName,
                 lastName,
                 email,
                 password: passwordHash,
-                picturePath ,
+                picturePath,
                 friends,
                 location,
                 occupation,
@@ -97,7 +96,7 @@ const register = async (req, res) => {
                 impressions: Math.floor(Math.random() * 10000)
             });
             const savedUser = await newUser.save();
-            const successfullySavedUser = {...savedUser._doc,error:"No error"}
+            const successfullySavedUser = { ...savedUser._doc, error: "No error" }
             res.status(201).json(successfullySavedUser);            // Resource saved successfully and returned saved User to Front-End
         }
 
@@ -113,7 +112,7 @@ const login = async (req, res) => {
         const user = await User.findOne({ email: email })
         if (!user)
             return res.status(400).json({ msg: "User doesnot exists!" })
-        const isMath = bcrypt.compare(password, user.password)
+        const isMath = await bcrypt.compare(password, user.password)
         if (!isMath) return res.status(400).json({ msg: "Please check you password!" })
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)                   // creating access Token
@@ -128,7 +127,7 @@ const login = async (req, res) => {
 /*  SEND OTP VERIFICATION EMAIL */
 const sendOTPVerificationEmail = async (req, res) => {
     try {
-        
+
         const { firstName,
             lastName,
             email,
@@ -143,18 +142,18 @@ const sendOTPVerificationEmail = async (req, res) => {
         });
         if (hasAccount.length >= 1) {
             //  records found
-           throw new Error("409 Another user with this email exists!");
-        } 
+            throw new Error("409 Another user with this email exists!");
+        }
 
         /*  Generating OTP */
         const otp = `${Math.floor(1000 + Math.random() * 9000)}`;
 
         // Mail Option
-       const mailOptions = {
-    from: process.env.AUTH_EMAIL,
-    to: email,
-    subject: "Welcome to CONNECT: Verify Your Email",
-    html: `
+        const mailOptions = {
+            from: process.env.AUTH_EMAIL,
+            to: email,
+            subject: "Welcome to CONNECT: Verify Your Email",
+            html: `
         <div style="background-color: #f5f5f5; padding: 20px; font-family: Arial, sans-serif;">
             <div style="background-color: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1);">
                 <h1 style="color: #333; text-align: center;">Welcome to CONNECT</h1>
@@ -165,42 +164,42 @@ const sendOTPVerificationEmail = async (req, res) => {
             </div>
         </div>
     `,
-};
+        };
 
 
         // Hash the Otp
         const salt = 10;
         const hashedOtp = await bcrypt.hash(otp, salt);
-        console.log("Creating otp for "+email)
+        console.log("Creating otp for " + email)
         const newOTPVerification = new UserOTPVerification({
-            // userId:_id,
             email: email,
             otp: hashedOtp,
             createAt: Date.now(),
             expirtedAt: Date.now() + 3600000
         });
-         // image storing
-         const b64 = Buffer.from(req.file.buffer).toString("base64");
-         let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+        // image storing
+        const b64 = Buffer.from(req.file.buffer).toString("base64");
+        let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
         // save Otp record
-        await newOTPVerification.save();
-         const response = await handleUpload(dataURI);
+        const saved = await newOTPVerification.save();
+        const response = await handleUpload(dataURI);
         // Send the mail
         await transporter.sendMail(mailOptions);
         console.log("Otp sent")
+        const otpId = saved._id
         res.json({
             status: "PENDING",
             message: "Verification email sent",
             data: {
-                // userId:_id,
-            firstName,
-            lastName,
-            email,
-            password,
-            friends,
-            location,
-            occupation,
-            picturePath:response.public_id 
+                firstName,
+                lastName,
+                email,
+                password,
+                friends,
+                location,
+                occupation,
+                picturePath: response.public_id,
+                otpId
             }
         })
     }
